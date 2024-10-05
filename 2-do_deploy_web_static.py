@@ -1,46 +1,33 @@
 #!/usr/bin/python3
-"""Deploy web static to different servers"""
-import re
-from fabric.context_managers import cd
-from fabric.api import env, put, run, sudo
-from os.path import join, exists, splitext
+"""Fabric script that distributes an archive to your web servers"""
+from fabric.api import env, put, run
+from os.path import exists
 
-
+env.hosts = ["54.89.161.80", "3.95.18.112"]
 env.user = "ubuntu"
-env.hosts = ["54.242.215.110", "34.229.154.33"]
-env.key_filename = '~/.ssh/id_rsa'
+env.key = "~/.ssh/id_rsa"
 
 
 def do_deploy(archive_path):
-    """
-    Deploy a compressed archive to a remote server.
-    Args:
-        archive_path (str): The path to the compressed archive.
-    Returns:
-        bool: True if the deployment is successful, False otherwise.
-    """
-
+    """Function to distribute an archive to your web servers"""
     if not exists(archive_path):
         return False
-
     try:
+        file_name = archive_path.split("/")[-1]
+        name = file_name.split(".")[0]
+        path_name = "/data/web_static/releases/" + name
         put(archive_path, "/tmp/")
-        file_name = re.search(r'[^/]+$', archive_path).group(0)
-        deploy_path = join("/data/web_static/releases/",
-                           splitext(file_name)[0])
-        sudo("mkdir -p {}".format(deploy_path))
-
-        sudo("tar -xzf /tmp/{} -C {}".format(file_name, deploy_path))
-
-        with cd(deploy_path):
-            sudo("mv web_static/* .")
-            sudo("rm -rf web_static")
-
-        sudo("rm /tmp/{}".format(file_name))
-        sudo("rm -rf /data/web_static/current")
-
-        sudo('ln -sf {} /data/web_static/current'.format(deploy_path))
-    except Exception as err:
+        run("mkdir -p {}/".format(path_name))
+        run('tar -xzf /tmp/{} -C {}/'.format(file_name, path_name))
+        run("rm /tmp/{}".format(file_name))
+        run("mv {}/web_static/* {}".format(path_name, path_name))
+        run("rm -rf {}/web_static".format(path_name))
+        run('rm -rf /data/web_static/current')
+        run('ln -s {}/ /data/web_static/current'.format(path_name))
+        return True
+    except Exception:
         return False
 
-    return True
+# Run the script like this:
+# $ fab -f 2-do_deploy_web_static.py
+# do_deploy:archive_path=versions/file_name.tgz
